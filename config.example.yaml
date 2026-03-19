@@ -1,0 +1,149 @@
+zenbpm:
+  address: "localhost:9090"
+  clientId: "zenbpm-worker"
+
+# Named credential sets.
+# Values prefixed with "env:" are resolved from environment variables at startup.
+# Plain string literals are also allowed for non-secret values like port numbers.
+#
+# Multiple instances of the same credential type (e.g. two Slack workspaces)
+# are supported by defining two entries with different names.
+credentials:
+  # --- HTTP adapter credentials ---
+
+  # Bearer token (Authorization: Bearer <token>)
+  my-api-token:
+    type: bearer
+    fields:
+      token: env:API_TOKEN
+
+  # Basic auth (Authorization: Basic <base64(user:pass)>)
+  my-basic-auth:
+    type: basic
+    fields:
+      username: env:API_USER
+      password: env:API_PASSWORD
+
+  # Arbitrary custom header
+  my-webhook-secret:
+    type: header
+    fields:
+      name: X-Webhook-Secret
+      value: env:WEBHOOK_SECRET
+
+  # --- n8n adapter credentials (require optional n8n packages) ---
+
+  slack-prod:
+    type: slackApi
+    fields:
+      accessToken: env:SLACK_PROD_TOKEN
+
+  slack-staging:
+    type: slackApi
+    fields:
+      accessToken: env:SLACK_STAGING_TOKEN
+
+  github-main:
+    type: githubApi
+    fields:
+      accessToken: env:GITHUB_TOKEN
+      server: https://api.github.com
+
+  main-postgres:
+    type: postgres
+    fields:
+      host: env:PG_HOST
+      database: env:PG_DATABASE
+      user: env:PG_USER
+      password: env:PG_PASSWORD
+      port: "5432"
+      ssl: "false"
+
+workers:
+  # ── HTTP adapter examples ─────────────────────────────────────────────────
+
+  # POST job variables as JSON to a webhook URL.
+  # Job variables: { event: "order_placed", orderId: "123" }
+  - jobType: notify-webhook
+    adapter: http
+    url: "https://hooks.example.com/events"
+    method: POST
+    credential: my-webhook-secret
+    headers:
+      X-Source: zenbpm
+
+  # Call a REST API with URL placeholder substitution.
+  # Job variables: { userId: "42", message: "Hello!" }
+  - jobType: send-user-notification
+    adapter: http
+    url: "https://api.example.com/users/{{userId}}/notify"
+    method: POST
+    credential: my-api-token
+
+  # GET request (no body sent).
+  # Job variables: { reportId: "monthly-2026-03" }
+  - jobType: trigger-report
+    adapter: http
+    url: "https://reports.example.com/generate/{{reportId}}"
+    method: GET
+    body: none
+    credential: my-basic-auth
+
+  # ── n8n adapter examples (requires: npm install n8n-workflow n8n-core n8n-nodes-base) ──
+
+  # Send a Slack message to a channel.
+  # Job variables: { channel: "#general", text: "Hello!" }
+  - jobType: send-slack-message
+    adapter: n8n
+    node: n8n-nodes-base.slack
+    nodeVersion: 2
+    credentials:
+      slackApi: slack-prod
+    parameters:
+      resource: message
+      operation: post
+      channel: "={{$json.channel}}"
+      text: "={{$json.text}}"
+      otherOptions: {}
+
+  # Create a GitHub issue.
+  # Job variables: { owner: "my-org", repository: "my-repo", title: "Bug", body: "Details" }
+  - jobType: create-github-issue
+    adapter: n8n
+    node: n8n-nodes-base.github
+    nodeVersion: 1
+    credentials:
+      githubApi: github-main
+    parameters:
+      resource: issue
+      operation: create
+      owner: "={{$json.owner}}"
+      repository: "={{$json.repository}}"
+      title: "={{$json.title}}"
+      body: "={{$json.body}}"
+
+  # Execute a raw SQL query on Postgres.
+  # Job variables: { query: "SELECT id, name FROM orders WHERE status = 'pending'" }
+  - jobType: run-sql-query
+    adapter: n8n
+    node: n8n-nodes-base.postgres
+    nodeVersion: 2
+    credentials:
+      postgres: main-postgres
+    parameters:
+      operation: executeQuery
+      query: "={{$json.query}}"
+
+  # Same node type, different credential (staging Slack workspace).
+  - jobType: send-slack-staging
+    adapter: n8n
+    node: n8n-nodes-base.slack
+    nodeVersion: 2
+    credentials:
+      slackApi: slack-staging
+    parameters:
+      resource: message
+      operation: post
+      channel: "={{$json.channel}}"
+      text: "={{$json.text}}"
+      otherOptions: {}

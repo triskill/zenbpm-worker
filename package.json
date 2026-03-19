@@ -1,0 +1,38 @@
+{
+  "name": "zenbpm-worker",
+  "version": "0.1.0",
+  "description": "Extensible ZenBPM job worker with a plugin adapter system (HTTP built-in; n8n optional)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node --transpile-only src/index.ts",
+    "proto:gen": "node scripts/gen-proto.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --require ts-node/register test/integration.test.ts"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.12.0",
+    "@grpc/proto-loader": "^0.7.13",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.23.8"
+  },
+  "optionalDependencies": {
+    "n8n-core": "2.13.0",
+    "n8n-nodes-base": "2.13.0",
+    "n8n-workflow": "2.13.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "overrides": {
+    "n8n-workflow": "2.13.0",
+    "zod": "^3.23.8"
+  }
+}

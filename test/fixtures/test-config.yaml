@@ -1,0 +1,29 @@
+zenbpm:
+  address: "localhost:9090"
+  clientId: "n8n-test-worker"
+
+credentials: {}
+
+workers:
+  # Maps the "n8n-set-echo" job type to the n8n Set node (v3, manual mapping mode).
+  # Each field uses an n8n expression to echo the incoming job variable, plus a
+  # fixed literal marker field — which lets the integration test assert that the
+  # full worker round-trip (gRPC subscribe → execute → complete) succeeded.
+  - jobType: n8n-set-echo
+    adapter: n8n
+    node: n8n-nodes-base.set
+    nodeVersion: 3
+    credentials: {}
+    parameters:
+      mode: manual
+      fields:
+        values:
+          - name: echoed_greeting
+            type: stringValue
+            stringValue: "={{$json.greeting}}"
+          - name: echoed_value
+            type: numberValue
+            numberValue: "={{$json.value}}"
+          - name: worker_marker
+            type: stringValue
+            stringValue: "n8n-worker-ok"

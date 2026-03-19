@@ -1,0 +1,61 @@
+// Proto file from https://github.com/pbinitiative/zenbpm/blob/main/pkg/zenclient/proto/zenbpm.proto
+// Note: uses proto edition "2023" syntax — loaded at runtime via @grpc/proto-loader
+
+syntax = "proto3";
+
+package grpc;
+
+option go_package = "github.com/pbinitiative/zenbpm/internal/grpc/proto";
+
+service ZenBpm {
+  rpc JobStream(stream JobStreamRequest) returns (stream JobStreamResponse);
+}
+
+message JobStreamRequest {
+  oneof request {
+    StreamSubscriptionRequest subscription = 1;
+    JobCompleteRequest complete = 2;
+    JobFailRequest fail = 3;
+  }
+}
+
+message StreamSubscriptionRequest {
+  enum Type {
+    TYPE_UNDEFINED = 0;
+    TYPE_SUBSCRIBE = 1;
+    TYPE_UNSUBSCRIBE = 2;
+  }
+  string job_type = 1;
+  Type type = 2;
+}
+
+message JobCompleteRequest {
+  int64 key = 1;
+  bytes variables = 2;
+}
+
+message JobFailRequest {
+  int64 key = 1;
+  string message = 2;
+  string error_code = 3;
+  bytes variables = 4;
+}
+
+message JobStreamResponse {
+  ErrorResult error = 1;
+  WaitingJob job = 2;
+}
+
+message WaitingJob {
+  int64 key = 1;
+  int64 instance_key = 2;
+  bytes variables = 3;
+  string type = 4;
+  string element_id = 5;
+  int64 created_at = 6;
+}
+
+message ErrorResult {
+  uint32 code = 1;
+  string message = 2;
+}

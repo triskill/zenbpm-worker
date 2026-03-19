@@ -1,0 +1,22 @@
+zenbpm-worker
+Copyright (c) ZenBPM contributors
+
+This product includes optional support for n8n integration nodes.
+The n8n packages (n8n-workflow, n8n-core, n8n-nodes-base) are NOT
+part of zenbpm-worker and are NOT covered by the Apache 2.0 License
+above. They are optional dependencies distributed under the
+n8n Sustainable Use License:
+
+  https://github.com/n8n-io/n8n/blob/master/LICENSE.md
+
+The n8n Sustainable Use License permits:
+  - Use for your own internal business purposes
+  - Non-commercial or personal use
+  - Distribution free of charge for non-commercial purposes
+
+Commercial redistribution or offering n8n functionality as a hosted
+service requires an n8n Enterprise License from n8n GmbH.
+
+If you use zenbpm-worker WITHOUT installing the optional n8n packages
+(e.g. using only the built-in HTTP adapter or a custom adapter),
+the n8n Sustainable Use License does not apply to your deployment.
