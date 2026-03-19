@@ -36,7 +36,7 @@ export async function buildRegistry(config: WorkerConfig): Promise<ExecutorRegis
           );
         }
         executor = new N8nJobExecutor(mapping, config);
-        console.log(`[Worker] Registered "${mapping.jobType}" → n8n adapter (${mapping.node} v${mapping.nodeVersion})`);
+        console.log(`[Worker] Registered "${mapping.jobType}" → n8n adapter (${mapping.integration}, action: ${mapping.action})`);
         break;
       }
 

@@ -32,6 +32,7 @@ credentials:
       value: env:WEBHOOK_SECRET
 
   # --- n8n adapter credentials (require optional n8n packages) ---
+  # The credential type is the integration's internal credential key name.
 
   slack-prod:
     type: slackApi
@@ -90,18 +91,21 @@ workers:
     credential: my-basic-auth
 
   # ── n8n adapter examples (requires: npm install n8n-workflow n8n-core n8n-nodes-base) ──
+  #
+  # The `integration` field names the service (slack, github, postgres, …).
+  # The `action` field is "resource.operation" (e.g. message.post, issue.create).
+  # n8n implementation details (node type strings, version numbers) are resolved
+  # internally and are not exposed in this config.
 
   # Send a Slack message to a channel.
   # Job variables: { channel: "#general", text: "Hello!" }
   - jobType: send-slack-message
     adapter: n8n
-    node: n8n-nodes-base.slack
-    nodeVersion: 2
+    integration: slack
+    action: message.post
     credentials:
       slackApi: slack-prod
     parameters:
-      resource: message
-      operation: post
       channel: "={{$json.channel}}"
       text: "={{$json.text}}"
       otherOptions: {}
@@ -110,13 +114,11 @@ workers:
   # Job variables: { owner: "my-org", repository: "my-repo", title: "Bug", body: "Details" }
   - jobType: create-github-issue
     adapter: n8n
-    node: n8n-nodes-base.github
-    nodeVersion: 1
+    integration: github
+    action: issue.create
     credentials:
       githubApi: github-main
     parameters:
-      resource: issue
-      operation: create
       owner: "={{$json.owner}}"
       repository: "={{$json.repository}}"
       title: "={{$json.title}}"
@@ -126,24 +128,21 @@ workers:
   # Job variables: { query: "SELECT id, name FROM orders WHERE status = 'pending'" }
   - jobType: run-sql-query
     adapter: n8n
-    node: n8n-nodes-base.postgres
-    nodeVersion: 2
+    integration: postgres
+    action: executeQuery
     credentials:
       postgres: main-postgres
     parameters:
-      operation: executeQuery
       query: "={{$json.query}}"
 
-  # Same node type, different credential (staging Slack workspace).
+  # Same integration, different credential (staging Slack workspace).
   - jobType: send-slack-staging
     adapter: n8n
-    node: n8n-nodes-base.slack
-    nodeVersion: 2
+    integration: slack
+    action: message.post
     credentials:
       slackApi: slack-staging
     parameters:
-      resource: message
-      operation: post
       channel: "={{$json.channel}}"
       text: "={{$json.text}}"
       otherOptions: {}

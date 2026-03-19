@@ -84,18 +84,53 @@ function buildWorkflow(
   });
 }
 
-function buildNode(mapping: N8nWorkerMapping): INode {
+/**
+ * Derives the internal n8n node type string from the user-facing mapping.
+ * e.g. { package: "n8n-nodes-base", integration: "slack" } → "n8n-nodes-base.slack"
+ */
+function resolveNodeTypeName(mapping: N8nWorkerMapping): string {
+  return `${mapping.package}.${mapping.integration}`;
+}
+
+/**
+ * Parses the user-facing `action` field ("resource.operation") into the
+ * node parameters that n8n expects.  If the action contains no dot the
+ * entire string is used as the `operation`.
+ *
+ * Examples:
+ *   "message.post"  → { resource: "message", operation: "post" }
+ *   "executeQuery"  → { operation: "executeQuery" }
+ */
+function resolveActionParams(action: string): Record<string, string> {
+  const dot = action.indexOf('.');
+  if (dot === -1) {
+    return { operation: action };
+  }
+  return {
+    resource: action.slice(0, dot),
+    operation: action.slice(dot + 1),
+  };
+}
+
+function buildNode(mapping: N8nWorkerMapping, nodeTypeName: string, nodeVersion: number): INode {
   const credentialsConfig: INodeCredentials = {};
   for (const [nodeCredKey, credName] of Object.entries(mapping.credentials)) {
     credentialsConfig[nodeCredKey] = { id: credName, name: credName };
   }
+  // Merge action-derived resource/operation into the user-supplied parameters.
+  // User-supplied parameters win (allow override if needed).
+  const actionParams = resolveActionParams(mapping.action);
+  const mergedParameters: INodeParameters = {
+    ...actionParams,
+    ...(mapping.parameters as INodeParameters),
+  };
   return {
     id: `node-${mapping.jobType}`,
     name: mapping.jobType,
-    type: mapping.node,
-    typeVersion: mapping.nodeVersion,
+    type: nodeTypeName,
+    typeVersion: nodeVersion,
     position: [0, 0] as [number, number],
-    parameters: mapping.parameters as INodeParameters,
+    parameters: mergedParameters,
     credentials: credentialsConfig,
   };
 }
@@ -207,41 +242,50 @@ export async function executeNode(
   config: WorkerConfig,
   jobVars: IDataObject,
 ): Promise<IDataObject[]> {
-  // 1. Load (or retrieve cached) node type
-  let rawNodeType = nodeTypeCache.get(mapping.node);
+  // 1. Derive the internal node type string from the user-facing integration name
+  const nodeTypeName = resolveNodeTypeName(mapping);
+
+  // 2. Load (or retrieve cached) node type
+  let rawNodeType = nodeTypeCache.get(nodeTypeName);
   if (!rawNodeType) {
-    rawNodeType = await loadNodeType(mapping.node);
-    nodeTypeCache.set(mapping.node, rawNodeType);
+    rawNodeType = await loadNodeType(nodeTypeName);
+    nodeTypeCache.set(nodeTypeName, rawNodeType);
   }
 
-  // 2. Resolve versioned node to concrete INodeType
-  const resolvedNode = resolveVersionedNode(rawNodeType, mapping.nodeVersion);
+  // 3. Resolve versioned node to concrete INodeType.
+  //    Use the highest available version by default — the harness does not
+  //    expose versioning as a user concern; the action abstraction always
+  //    selects the best available implementation.
+  const nodeVersion = rawNodeType && 'nodeVersions' in rawNodeType
+    ? Math.max(...Object.keys((rawNodeType as IVersionedNodeType).nodeVersions).map(Number))
+    : 1;
+  const resolvedNode = resolveVersionedNode(rawNodeType, nodeVersion);
 
   if (!resolvedNode.execute) {
     throw new Error(
-      `[n8n/harness] Node "${mapping.node}" v${mapping.nodeVersion} does not have an execute() method. ` +
-        `Only programmatic nodes are supported.`,
+      `[n8n/harness] Integration "${mapping.integration}" (action: "${mapping.action}") does not have an execute() method. ` +
+        `Only programmatic integrations are supported.`,
     );
   }
 
-  // 3. Build node config
-  const node = buildNode(mapping);
+  // 4. Build node config
+  const node = buildNode(mapping, nodeTypeName, nodeVersion);
 
-  // 4. Build credential helper scoped to this worker mapping
+  // 5. Build credential helper scoped to this worker mapping
   const credentialMap = buildCredentialMap(mapping.credentials, config.credentials);
   const credentialsHelper = new EnvCredentialsHelper(credentialMap);
 
-  // 5. Build workflow and additionalData
+  // 6. Build workflow and additionalData
   const workflow = buildWorkflow(resolvedNode, node, mapping);
   const additionalData = buildAdditionalData(credentialsHelper);
 
-  // 6. Input: job variables become the single input item's $json
+  // 7. Input: job variables become the single input item's $json
   const inputItems: INodeExecutionData[] = [{ json: jobVars }];
   const runExecutionData: IRunExecutionData = createRunExecutionData();
   const inputData = buildInputData(inputItems);
   const executeData = buildExecuteData(node, inputItems);
 
-  // 7. Construct ExecuteContext and call execute()
+  // 8. Construct ExecuteContext and call execute()
   const closeFunctions: Array<() => Promise<void>> = [];
   const context = new ExecuteContext(
     workflow,
@@ -258,10 +302,10 @@ export async function executeNode(
 
   const result = await resolvedNode.execute.call(context);
 
-  // 8. Run any cleanup handlers registered by the node
+  // 9. Run any cleanup handlers registered by the node
   await Promise.all(closeFunctions.map((fn) => fn()));
 
-  // 9. Handle EngineRequest (streaming/sub-runner responses — not applicable here)
+  // 10. Handle EngineRequest (streaming/sub-runner responses — not applicable here)
   if (!Array.isArray(result)) {
     throw new Error('[n8n/harness] Node returned an EngineRequest; streaming nodes are not supported.');
   }

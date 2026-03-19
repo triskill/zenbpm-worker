@@ -126,25 +126,33 @@ npm install n8n-workflow@2.13.0 n8n-core@2.13.0 n8n-nodes-base@2.13.0
 ```yaml
 credentials:
   slack-prod:
-    type: slackApi          # n8n credential type name
+    type: slackApi          # credential type required by the integration
     fields:
       accessToken: env:SLACK_PROD_TOKEN
 
 workers:
   - jobType: send-slack-message
     adapter: n8n
-    node: n8n-nodes-base.slack
-    nodeVersion: 2
+    integration: slack      # service name (slack, github, postgres, …)
+    action: message.post    # "resource.operation" or just "operation"
     credentials:
       slackApi: slack-prod
     parameters:
-      resource: message
-      operation: post
-      channel: "={{$json.channel}}"   # n8n expression — $json is the job variables
+      channel: "={{$json.channel}}"   # expression — $json is the job variables
       text: "={{$json.text}}"
 ```
 
-Node parameters support [n8n expressions](https://docs.n8n.io/code/expressions/). Job variables from ZenBPM are exposed as `$json`:
+The `action` field uses a `resource.operation` format that maps to the integration's capabilities:
+
+```yaml
+action: message.post      # resource=message, operation=post
+action: issue.create      # resource=issue,   operation=create
+action: executeQuery      # no resource — maps to operation=executeQuery
+```
+
+`resource` and `operation` are derived from `action` automatically. Any value in `parameters` overrides them if needed. Additional parameters are passed directly to the integration.
+
+**Expressions:** Job variables from ZenBPM are exposed as `$json`:
 
 ```yaml
 parameters:
@@ -152,7 +160,17 @@ parameters:
   text: "={{$json.message}}"
 ```
 
-**Supported nodes:** Any programmatic `n8n-nodes-base` node with an `execute()` method — 150+ integrations including Slack, Gmail, Teams, GitHub, GitLab, Jira, Postgres, MySQL, MongoDB, Redis, HTTP Request, S3, Google Drive, Crypto, Code, and more. Declarative-only nodes and trigger/poll nodes are not supported.
+**Community packages:** Use the optional `package` field when the integration lives outside `n8n-nodes-base`:
+
+```yaml
+- jobType: my-custom-job
+  adapter: n8n
+  integration: myIntegration
+  package: n8n-nodes-my-community-package
+  action: data.process
+```
+
+**Supported integrations:** Any programmatic node in `n8n-nodes-base` with an `execute()` method — 150+ integrations including Slack, Gmail, Teams, GitHub, GitLab, Jira, Postgres, MySQL, MongoDB, Redis, HTTP Request, S3, Google Drive, Crypto, Code, and more. Declarative-only nodes and trigger/poll nodes are not supported.
 
 ---
 
@@ -203,12 +221,13 @@ workers:
   # n8n adapter (requires optional n8n packages)
   - jobType: <zenbpm-job-type>
     adapter: n8n
-    node: <n8n-node-type>             # e.g. n8n-nodes-base.slack
-    nodeVersion: <number>             # default: 1
+    integration: <service>            # e.g. slack, github, postgres
+    action: <resource.operation>      # e.g. message.post, issue.create, executeQuery
+    package: <package-name>           # optional
     credentials:
-      <n8n-credential-key>: <credential-name>
+      <credential-key>: <credential-name>
     parameters:
-      <param>: <value or expression>
+      <param>: <value or expression>  # expressions: ={{$json.varName}}
 ```
 
 ---

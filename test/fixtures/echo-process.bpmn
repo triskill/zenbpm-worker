@@ -20,9 +20,9 @@
     <!--
       Service task handled by the n8n worker.
       The job type "n8n-set-echo" is mapped in test-config.yaml to the
-      n8n-nodes-base.set node, which echoes job variables back as output.
+      "set" integration, which echoes job variables back as output.
     -->
-    <bpmn:serviceTask id="Task_Echo" name="Echo via n8n Set node">
+    <bpmn:serviceTask id="Task_Echo" name="Echo via Set integration">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="n8n-set-echo" />
         <zeebe:ioMapping>

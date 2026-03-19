@@ -49,36 +49,45 @@ const BaseWorkerMappingSchema = z.object({
 /**
  * Worker mapping for the n8n adapter.
  *
- * `credentials` maps the n8n credential key (as declared by the node,
- * e.g. "slackApi") to a named credential defined in the top-level
- * `credentials` section.
+ * `credentials` maps the integration's credential key (e.g. "slackApi")
+ * to a named credential defined in the top-level `credentials` section.
  *
- * `parameters` are passed to the n8n node and support n8n expressions
+ * `parameters` are passed to the integration node and support expressions
  * such as `={{$json.channel}}` where `$json` is the ZenBPM job variables.
  *
  * Example:
  *   workers:
  *     - jobType: send-slack-message
  *       adapter: n8n
- *       node: n8n-nodes-base.slack
- *       nodeVersion: 2
+ *       integration: slack
+ *       action: message.post
  *       credentials:
  *         slackApi: my-slack-prod
  *       parameters:
- *         resource: message
- *         operation: post
  *         channel: "={{$json.channel}}"
  *         text: "={{$json.text}}"
  */
 export const N8nWorkerMappingSchema = BaseWorkerMappingSchema.extend({
   adapter: z.literal('n8n').default('n8n'),
-  /** n8n node type string, e.g. "n8n-nodes-base.slack" */
-  node: z.string(),
-  /** Node version (default: 1) */
-  nodeVersion: z.number().default(1),
-  /** Maps n8n credential key → named credential from top-level credentials map */
+  /**
+   * Integration name — the service to integrate with (e.g. "slack", "github", "postgres").
+   * Resolved internally to the appropriate node implementation.
+   */
+  integration: z.string(),
+  /**
+   * Action to perform, in "resource.operation" form (e.g. "message.post", "issue.create").
+   * Resolved internally to the node's resource + operation parameters.
+   */
+  action: z.string(),
+  /**
+   * Optional node package override. Defaults to "n8n-nodes-base".
+   * Use this only when the integration lives in a community package.
+   * Example: "n8n-nodes-community-slack-advanced"
+   */
+  package: z.string().default('n8n-nodes-base'),
+  /** Maps integration credential key → named credential from top-level credentials map */
   credentials: z.record(z.string()).default({}),
-  /** Static or expression-based node parameters */
+  /** Static or expression-based node parameters (merged with the action's resource/operation) */
   parameters: z.record(z.unknown()).default({}),
 });
 
