@@ -1,0 +1,115 @@
+zenbpm:
+  address: "localhost:9090"
+  clientId: "n8n-advanced-test-worker"
+
+credentials:
+  # GitHub personal access token used by the github-issue test scenario.
+  # Set the GITHUB_TOKEN environment variable before running, or copy this file
+  # to test/fixtures/advanced-config.local.yaml and fill in the real token there
+  # (that file is gitignored).
+  github-test:
+    type: githubApi
+    fields:
+      accessToken: "env:GITHUB_TOKEN"
+      server: "https://api.github.com"
+
+workers:
+  # ── Scenario 1: n8n Set node with string expression ──────────────────────
+  # Receives { code_input: "hello" }.
+  # Uses an n8n expression to uppercase the string and append "_processed".
+  # Output variable: code_result
+  - jobType: n8n-set-upper
+    adapter: n8n
+    integration: set
+    action: manual
+    credentials: {}
+    parameters:
+      mode: manual
+      assignments:
+        assignments:
+          - id: "1"
+            name: code_result
+            value: "={{$json.code_input.toUpperCase() + '_processed'}}"
+            type: string
+
+  # ── Scenario 2: n8n Crypto node (SHA-256 hash) ───────────────────────────
+  # Receives { data: "zenbpm" }, hashes it with SHA-256.
+  # Output variable: crypto_hash (hex)
+  - jobType: n8n-crypto-hash
+    adapter: n8n
+    integration: crypto
+    action: execute
+    credentials: {}
+    parameters:
+      action: hash
+      type: SHA256
+      value: "={{$json.data}}"
+      dataPropertyName: crypto_hash
+      encoding: hex
+
+  # ── Scenario 3: n8n HTTP Request node (→ httpbin.org) ────────────────────
+  # POSTs { "ping": "pong" } to httpbin.org/post and reads back the echoed json.
+  # Output variable: http_echo_json (the full "json" object echoed by httpbin)
+  - jobType: n8n-http-request
+    adapter: n8n
+    integration: httpRequest
+    action: execute
+    credentials: {}
+    parameters:
+      method: POST
+      url: "https://httpbin.org/post"
+      sendBody: true
+      contentType: json
+      specifyBody: json
+      jsonBody: '{"ping":"pong"}'
+
+  # ── Scenario 4: n8n GitHub node (create issue on triskill/zenbpm-worker) ──
+  # Receives { issue_title: "..." }, creates a GitHub issue.
+  # Output variable: issue_url (the HTML URL of the created issue)
+  - jobType: n8n-github-issue
+    adapter: n8n
+    integration: github
+    action: issue.create
+    credentials:
+      githubApi: github-test
+    parameters:
+      owner:
+        __rl: true
+        value: "triskill"
+        mode: name
+      repository:
+        __rl: true
+        value: "zenbpm-worker"
+        mode: name
+      title: "={{$json.issue_title}}"
+      body: "This issue was automatically created by the zenbpm-worker advanced integration test.\n\nThis issue can be safely closed/deleted."
+
+  # ── Scenario 5: n8n Set node with numeric expression ─────────────────────
+  # Receives { transform_input: 21 }, doubles it using an n8n expression.
+  # Output variable: transform_result
+  - jobType: n8n-set-double
+    adapter: n8n
+    integration: set
+    action: manual
+    credentials: {}
+    parameters:
+      mode: manual
+      assignments:
+        assignments:
+          - id: "1"
+            name: transform_result
+            value: "={{$json.transform_input * 2}}"
+            type: number
+
+  # ── Scenario 6 (error path): HTTP Request to a guaranteed-failing URL ────
+  # Sends a request to httpbin.org/status/500 which returns HTTP 500.
+  # The HttpJobExecutor rejects on 4xx/5xx, so the job gets failed →
+  # the ZenBPM instance ends in state "failed".
+  - jobType: n8n-http-fail
+    adapter: n8n
+    integration: httpRequest
+    action: execute
+    credentials: {}
+    parameters:
+      method: GET
+      url: "https://httpbin.org/status/500"

@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  id="Definitions_AdvancedTest"
+  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!--
+    advanced-test process
+    ─────────────────────
+    Five sequential service tasks that together exercise the full set of
+    zenbpm-worker capabilities:
+
+      1. n8n-code-js        – Code node (JavaScript): uppercases code_input
+      2. n8n-crypto-hash    – Crypto node: SHA-256 hash of the literal "zenbpm"
+      3. n8n-http-request   – HTTP Request node: POST to httpbin.org/post
+      4. n8n-github-issue   – GitHub node: create an issue on triskill/zenbpm-worker
+      5. n8n-code-transform – Code node (JavaScript): doubles transform_input
+
+    Process input variables (provided at instance start):
+      code_input      : string  – e.g. "hello"
+      transform_input : number  – e.g. 21
+      issue_title     : string  – e.g. "Test issue <timestamp>"
+
+    Zeebe I/O mappings thread the relevant variables into each task's job
+    and map the output variables back to the process scope.
+  -->
+  <bpmn:process id="advanced-test" isExecutable="true">
+
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_CodeJs" />
+
+    <!-- Task 1: Set node with expression — uppercase code_input and append _processed -->
+    <bpmn:serviceTask id="Task_CodeJs" name="Set (uppercase expression)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="n8n-set-upper" />
+        <zeebe:ioMapping>
+          <zeebe:input  source="=code_input"   target="code_input"   />
+          <zeebe:output source="=code_result"  target="code_result"  />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_CodeJs" targetRef="Task_CryptoHash" />
+
+    <!-- Task 2: Crypto node — SHA-256 of the "crypto_data" process variable -->
+    <bpmn:serviceTask id="Task_CryptoHash" name="Crypto SHA-256">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="n8n-crypto-hash" />
+        <zeebe:ioMapping>
+          <!-- crypto_data is set at instance start (value: "zenbpm") -->
+          <zeebe:input  source="=crypto_data"  target="data"         />
+          <zeebe:output source="=crypto_hash"  target="crypto_hash"  />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_CryptoHash" targetRef="Task_HttpRequest" />
+
+    <!-- Task 3: HTTP Request node — POST to httpbin.org/post -->
+    <bpmn:serviceTask id="Task_HttpRequest" name="HTTP Request (httpbin)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="n8n-http-request" />
+        <zeebe:ioMapping>
+          <!-- No special inputs needed; the node's parameters contain the URL and body.
+               Map back the "json" field from the httpbin echo response. -->
+          <zeebe:output source="=json"      target="http_echo_json" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_HttpRequest" targetRef="Task_GithubIssue" />
+
+    <!-- Task 4: GitHub node — create an issue on triskill/zenbpm-worker -->
+    <bpmn:serviceTask id="Task_GithubIssue" name="GitHub create issue">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="n8n-github-issue" />
+        <zeebe:ioMapping>
+          <zeebe:input  source="=issue_title" target="issue_title" />
+          <zeebe:output source="=html_url"    target="issue_url"   />
+          <zeebe:output source="=number"      target="issue_number" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_GithubIssue" targetRef="Task_CodeTransform" />
+
+    <!-- Task 5: Set node with numeric expression — double transform_input -->
+    <bpmn:serviceTask id="Task_CodeTransform" name="Set (double expression)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="n8n-set-double" />
+        <zeebe:ioMapping>
+          <zeebe:input  source="=transform_input"  target="transform_input"  />
+          <zeebe:output source="=transform_result" target="transform_result" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_CodeTransform" targetRef="EndEvent_1" />
+
+    <bpmn:endEvent id="EndEvent_1">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- ── Diagram layout (informational only) ─────────────────────────────── -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="advanced-test">
+
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="52" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_CodeJs_di" bpmnElement="Task_CodeJs">
+        <dc:Bounds x="140" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_CryptoHash_di" bpmnElement="Task_CryptoHash">
+        <dc:Bounds x="292" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_HttpRequest_di" bpmnElement="Task_HttpRequest">
+        <dc:Bounds x="444" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_GithubIssue_di" bpmnElement="Task_GithubIssue">
+        <dc:Bounds x="596" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_CodeTransform_di" bpmnElement="Task_CodeTransform">
+        <dc:Bounds x="748" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="900" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="88"  y="100" /><di:waypoint x="140" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="240" y="100" /><di:waypoint x="292" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="392" y="100" /><di:waypoint x="444" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="544" y="100" /><di:waypoint x="596" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
+        <di:waypoint x="696" y="100" /><di:waypoint x="748" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
+        <di:waypoint x="848" y="100" /><di:waypoint x="900" y="100" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
